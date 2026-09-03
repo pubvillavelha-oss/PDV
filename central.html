@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>T05 · Central de Pedidos</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body data-tema="base">
+  <header class="topo">
+    <button class="voltar" onclick="location.href='index.html'">←</button>
+    <div style="flex:1">
+      <div class="logo">🛎️ Central de Pedidos</div>
+      <div class="sub" id="lblHora"></div>
+    </div>
+    <button class="acao" style="border-color:var(--linha);color:var(--txt)" onclick="carregar()">Atualizar</button>
+  </header>
+
+  <main class="conteudo" style="max-width:1100px">
+    <div class="kanban" id="kanban"></div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    let vistos = JSON.parse(localStorage.getItem("vvp_vistos") || "[]");
+
+    function pill(st) {
+      const map = { "Recebido": "st-recebido", "Em Preparo": "st-preparo",
+        "Pronto": "st-pronto", "Entregue": "st-entregue", "Cancelado": "st-cancelado" };
+      return `<span class="status-pill ${map[st] || ""}">${st}</span>`;
+    }
+    function card(p) {
+      const origem = p.perfil === "banda" ? "banda" : "cliente";
+      const itens = (p.itens || []).map(i => `<div class="item-linha">${i.quantidade}× ${i.nome}</div>`).join("");
+      const avancar = p.status === "Recebido" ? "Em Preparo"
+        : p.status === "Em Preparo" ? "Pronto" : "Entregue";
+      return `<div class="cartao-pedido ${origem}">
+        <div class="top-pedido">
+          <span class="codigo-p">${p.codigo}</span>
+          <span>${p.datahora || ""}</span>
+        </div>
+        <div style="margin:6px 0">
+          <span class="badge ${origem}">${origem === "banda" ? "🎸 BANDA" : "CLIENTE"}</span>
+          ${p.mesa ? ` <b style="font-size:.85rem">Mesa ${p.mesa}</b>` : ""}
+        </div>
+        <div style="font-weight:600;font-size:.9rem">${p.nome || ""} ${p.nomeBanda ? "(" + p.nomeBanda + ")" : ""}</div>
+        <div class="info-consumo">${p.modalidade === "Mesa" ? "🪑 Entrega na mesa" : "🥡 Retirar no balcão"}</div>
+        ${itens}
+        <div class="total-pedido">${VVP.moeda(p.valorTotal)}</div>
+        <div style="margin:6px 0">${pill(p.status)}</div>
+        <div class="acoes-pedido">
+          ${p.status !== "Cancelado" && p.status !== "Entregue"
+            ? `<button class="acao" onclick="avancar('${p.codigo}','${avancar}')">➜ ${avancar}</button>
+               <button class="acao" style="border-color:var(--alerta);color:#ff8a80"
+                 onclick="avancar('${p.codigo}','Cancelado')">Cancelar</button>`
+            : ""}
+        </div>
+      </div>`;
+    }
+    function col(status, pedidos) {
+      return `<div class="col"><h3>${status} <span>(${pedidos.length})</span></h3>
+        ${pedidos.map(card).join("") || '<p class="vazio" style="padding:14px">—</p>'}</div>`;
+    }
+    async function carregar() {
+      document.getElementById("lblHora").textContent = new Date().toLocaleTimeString("pt-BR");
+      const pedidos = await VVP.listarPedidos();        // RF-19 fila em tempo real
+      const novos = pedidos.filter(p => !vistos.includes(p.codigo));
+      if (novos.length) { VVP.bip(); VVP.toast(novos.length + " novo(s) pedido(s)"); }
+      vistos = pedidos.map(p => p.codigo);
+      localStorage.setItem("vvp_vistos", JSON.stringify(vistos));
+      const ativos = pedidos.filter(p => !["Entregue", "Cancelado"].includes(p.status));
+      const hist = pedidos.filter(p => ["Entregue", "Cancelado"].includes(p.status));
+      const f = s => ativos.filter(p => p.status === s);
+      document.getElementById("kanban").innerHTML =
+        col("Recebido", f("Recebido")) + col("Em Preparo", f("Em Preparo")) +
+        col("Pronto", f("Pronto")) + col("Entregues / Cancelados", hist.slice(0, 12));
+    }
+    async function avancar(codigo, status) {
+      await VVP.atualizarStatus(codigo, status);        // RF-20
+      carregar();
+    }
+    carregar();
+    setInterval(carregar, 8000);                          // atualização automática
+  </script>
+</body>
+</html>

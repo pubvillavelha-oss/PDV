@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>T06 · Painel da Banda</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body data-tema="base">
+  <header class="topo">
+    <button class="voltar" onclick="location.href='index.html'">←</button>
+    <div>
+      <div class="logo">🎸 Painel da Banda</div>
+      <div class="sub" id="lblNome"></div>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div id="box"></div>
+    <button class="btn primario mt" onclick="location.href='cardapio.html'">Fazer novo pedido</button>
+    <button class="btn mt" onclick="VVP.sair(); location.href='index.html'">Trocar perfil / banda</button>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    async function render() {
+      const s = VVP.getSessao();
+      if (!s || s.perfil !== "banda") { location.href = "index.html"; return; }
+      document.getElementById("lblNome").textContent =
+        s.nome + (s.dataShow ? " · " + s.dataShow : "");
+      const consumo = VVP.calcularConsumo(false);
+      const teto = consumo.teto;
+      const pct = Math.min(100, teto ? consumo.consumido / teto * 100 : 0);
+      const pedidos = (await VVP.listarPedidos()).filter(p =>
+        p.perfil === "banda" && Number(p.idBanda) === Number(s.idBanda));
+      const lista = pedidos.map(p => `<div class="linha" style="font-size:.85rem">
+        <span style="flex:1">${p.codigo} — ${p.status}</span>
+        <b>${VVP.moeda(p.valorTotal)}</b></div>`).join("") || '<p class="vazio">Nenhum pedido enviado.</p>';
+      document.getElementById("box").innerHTML = `
+        <div class="meta">
+          <span>🎸 ${s.nome}</span>
+          <span>📅 ${s.dataShow || "—"}</span>
+          <span>💰 Cachê: ${VVP.moeda(s.cache)}</span>
+        </div>
+        <div class="resumo">
+          <div class="info-consumo">
+            <b>Limite de consumação:</b> ${VVP.moeda(teto)} &nbsp;·&nbsp;
+            <b>Consumido:</b> ${VVP.moeda(consumo.consumido)} &nbsp;·&nbsp;
+            <b>Saldo:</b> ${VVP.moeda(consumo.saldo)}   <!-- RF-27 consulta de saldo -->
+          </div>
+          <div class="progresso" style="margin:10px 0">
+            <div class="preenchimento ${consumo.excedente ? "excedente" : ""}" style="width:${pct}%"></div>
+          </div>
+          ${consumo.excedente > 0 ? `
+          <div class="sinalizador">🚨 Excedente de <b>${VVP.moeda(consumo.excedente)}</b> sobre a consumação (RF-25).
+            <br>Atenção: o valor excedente será <b>descontado do cachê</b> caso não seja pago no caixa ao final da apresentação. (RF-26)</div>`
+          : '<div class="info-consumo">✅ Dentro do limite de consumação.</div>'}
+        </div>
+        <h3 style="margin:16px 0 6px;font-size:.9rem">Pedidos da banda (RF-24, sem pagamento)</h3>
+        <div class="resumo">${lista}</div>`;
+    }
+    render();
+  </script>
+</body>
+</html>

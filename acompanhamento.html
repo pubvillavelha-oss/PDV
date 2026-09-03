@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Status do Pedido</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body data-tema="base">
+  <header class="topo">
+    <div style="flex:1">
+      <div class="logo">📦 Acompanhar pedido</div>
+      <div class="sub" id="lblCodigo"></div>
+    </div>
+    <button class="acao" style="border-color:var(--linha);color:var(--txt)" onclick="carregar()">Atualizar</button>
+  </header>
+
+  <main class="conteudo">
+    <div id="box"></div>
+    <button class="btn primario mt" onclick="location.href='cardapio.html'">Fazer novo pedido</button>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    const codigo = new URLSearchParams(location.search).get("codigo")
+      || localStorage.getItem("vvp_ultimo_pedido");
+    const FLUXO = ["Recebido", "Em Preparo", "Pronto", "Entregue"];
+    async function carregar() {
+      document.getElementById("lblCodigo").textContent = "Código: " + (codigo || "—");
+      const pedidos = await VVP.listarPedidos();
+      const p = pedidos.find(x => x.codigo === codigo);
+      if (!p) { document.getElementById("box").innerHTML =
+        '<p class="vazio">Pedido não encontrado.</p>'; return; }
+      const pos = FLUXO.indexOf(p.status);
+      const passos = FLUXO.map((s, i) =>
+        `<div class="linha"><span>${i === pos ? "➡️" : (i < pos ? "✅" : "⏳")} ${s}</span></div>`).join("");
+      const exced = p.perfil === "banda" && p.nomeBanda ? `<div class="sinalizador mt">
+        🎸 Pedido da banda ${p.nomeBanda} registrado na consumação.
+        Excedente será tratado no caixa/cachê.</div>` : "";
+      document.getElementById("box").innerHTML = `
+        <div class="resumo">
+          <div class="linha"><span><b>Pedido</b></span><b>${p.codigo}</b></div>
+          <div class="linha"><span>Origem</span><span>${p.perfil === "banda" ? "🎸 Banda" : "🧑‍🍳 " + (p.nome || "")}</span></div>
+          <div class="linha"><span>Entrega</span><span>${p.modalidade === "Mesa" ? "🪑 Mesa" + (p.mesa ? " " + p.mesa : "") : "🥡 Balcão"}</span></div>
+          <div class="linha"><span>Total</span><b>${VVP.moeda(p.valorTotal)}</b></div>
+        </div>
+        <div class="resumo mt">${passos}</div>
+        ${exced}
+        ${p.status === "Entregue" ? '<div class="sinalizador" style="border-color:var(--ok);background:var(--ok-fundo);color:#a5d6a7">🎉 Pedido entregue. Bom apetite!</div>' : ""}`;
+    }
+    carregar();
+    setInterval(carregar, 10000);
+  </script>
+</body>
+</html>

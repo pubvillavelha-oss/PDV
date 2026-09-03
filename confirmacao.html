@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>T04 · Confirmação e Envio</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body data-tema="base">
+  <header class="topo">
+    <button class="voltar" onclick="history.back()">←</button>
+    <div>
+      <div class="logo">✅ Confirmar pedido</div>
+      <div class="sub" id="lblCodigo"></div>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div class="resumo" id="itens"></div>
+
+    <h3 style="margin:16px 0 8px;font-size:.9rem">Como deseja receber? (RF-15)</h3>
+    <div class="segmentado">
+      <div class="seg ativa" id="segBalcao" onclick="escolher('Balcao')">🥡 Retirar no balcão</div>
+      <div class="seg" id="segMesa" onclick="escolher('Mesa')">🪑 Entrega na mesa</div>
+    </div>
+    <div id="blocoMesa" hidden style="margin-top:10px">
+      <input id="inMesa" class="campo" placeholder="Número da mesa" inputmode="numeric">
+    </div>
+
+    <div class="resumo mt">
+      <div class="linha"><span>Subtotal</span><b id="rSub"></b></div>
+      <div class="linha" id="linhaTaxa" hidden>
+        <span>Taxa de serviço (<span id="pctTaxa"></span>%) — RF-16</span><b id="rTaxa"></b></div>
+      <div class="linha" style="font-size:1.05rem"><span><b>Total</b></span><b id="rTotal"></b></div>
+    </div>
+    <div id="avisoBanda"></div>
+
+    <button class="btn primario mt" onclick="enviar()">🚀 Confirmar e Enviar Pedido</button>
+    <button class="btn mt" onclick="history.back()">Voltar ao carrinho</button>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    let modalidade = "Balcao";
+
+    function render() {
+      document.getElementById("lblCodigo").textContent = "Código: " + VVP.codigoAtual();
+      const itens = VVP.getCarrinho();
+      document.getElementById("itens").innerHTML = itens.map(i =>
+        `<div class="linha"><span style="flex:1">${i.quantidade}× ${i.nome}</span>
+         <b>${VVP.moeda(i.quantidade * i.precoUnitario)}</b></div>`).join("")
+        || '<p class="vazio">Carrinho vazio.</p>';
+      const s = VVP.getSessao();
+      if (s.mesa) document.getElementById("inMesa").value = s.mesa;
+      escolher(modalidade);
+      const c = VVP.calcularConsumo(true);
+      document.getElementById("avisoBanda").innerHTML =
+        (s.perfil === "banda" && c && c.excedentePrevisao > 0) ?
+        `<div class="sinalizador mt">⚠️ Ao enviar, a banda registrará excedente de
+           <b>${VVP.moeda(c.excedentePrevisao)}</b> sobre a consumação de ${VVP.moeda(c.teto)}.
+           Valor será descontado do cachê caso não seja pago no caixa.</div>` : "";
+    }
+    function escolher(m) {
+      modalidade = m;
+      document.getElementById("segBalcao").classList.toggle("ativa", m === "Balcao");
+      document.getElementById("segMesa").classList.toggle("ativa", m === "Mesa");
+      const mesa = m === "Mesa";
+      document.getElementById("blocoMesa").hidden = !mesa;
+      document.getElementById("linhaTaxa").hidden = !mesa;   // RN-02: taxa só na mesa
+      recalcular(mesa);
+    }
+    function recalcular(mesa) {
+      const sub = VVP.subtotalCarrinho();
+      const taxa = mesa ? VVP.obterTaxa() : 0;
+      const vTaxa = sub * taxa / 100;
+      document.getElementById("rSub").textContent = VVP.moeda(sub);
+      document.getElementById("pctTaxa").textContent = taxa;
+      document.getElementById("rTaxa").textContent = VVP.moeda(vTaxa);
+      document.getElementById("rTotal").textContent = VVP.moeda(sub + vTaxa);
+    }
+    async function enviar() {
+      const s = VVP.getSessao();
+      const mesa = modalidade === "Mesa" ? document.getElementById("inMesa").value.trim() : "";
+      if (modalidade === "Mesa" && !mesa) { VVP.toast("Informe o número da mesa", false); return; }
+      const aviso = modalidade === "Mesa"
+        ? `Taxa de serviço de ${VVP.obterTaxa()}% será aplicada. Confirmar envio?`
+        : (s.perfil === "banda"
+            ? "A banda não passa por tela de pagamento (RF-24). Consumação será registrada. Confirmar? (RN-03)"
+            : "Confirmar envio do pedido para a central?");
+      if (!confirm(aviso)) return;
+      const cab = {
+        perfil: s.perfil, nome: s.nome, mesa, modalidade,
+        idBanda: s.idBanda || null, nomeBanda: s.perfil === "banda" ? s.nome : ""
+      };
+      try {
+        const { pedido, consumo } = await VVP.registrarPedido(cab);   // grava base (RF-17/RF-33)
+        VVP.toast("Pedido " + pedido.codigo + " enviado!");
+        setTimeout(() => location.href = "acompanhamento.html?codigo=" + pedido.codigo, 400);
+      } catch (e) { VVP.toast(e.message || "Falha ao enviar", false); }
+    }
+    render();
+  </script>
+</body>
+</html>

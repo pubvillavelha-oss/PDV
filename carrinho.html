@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>T03 · Carrinho</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body data-tema="base">
+  <header class="topo">
+    <button class="voltar" onclick="location.href='cardapio.html'">←</button>
+    <div>
+      <div class="logo">🧺 Meu pedido</div>
+      <div class="sub" id="lblCodigo"></div>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div id="consumo"></div>
+    <div class="resumo" id="lista"></div>
+    <div id="totais" class="resumo mt"></div>
+    <button class="btn primario mt" id="btnSeg" onclick="seguir()">Continuar</button>
+    <button class="btn mt" onclick="location.href='cardapio.html'">+ Adicionar mais itens (RF-11)</button>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    function render() {
+      document.getElementById("lblCodigo").textContent = "Código: " + VVP.codigoAtual();   // RF-10
+      const itens = VVP.getCarrinho();
+      const lista = document.getElementById("lista");
+      if (!itens.length) { lista.innerHTML = '<p class="vazio">Seu pedido está vazio.</p>'; }
+      else {
+        lista.innerHTML = itens.map(i =>
+          `<div class="linha">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:.9rem">${i.nome}</div>
+              <div class="info-consumo">${VVP.moeda(i.precoUnitario)} cada</div>
+            </div>
+            <div class="qtd">
+              <button onclick="mudar(${i.idProduto},-1)">−</button>
+              <b>${i.quantidade}</b>
+              <button onclick="mudar(${i.idProduto},1)">+</button>
+            </div>
+            <button style="background:none;border:none;font-size:1rem;cursor:pointer"
+              onclick="excluir(${i.idProduto})" title="Excluir item (RF-14)">🗑️</button>
+            <b style="min-width:70px;text-align:right">${VVP.moeda(i.quantidade * i.precoUnitario)}</b>
+          </div>`).join("");
+      }
+      renderTotais(itens);
+      renderConsumo();
+    }
+    function renderTotais(itens) {
+      const sub = VVP.subtotalCarrinho();                          // RF-12 valor em tempo real
+      document.getElementById("totais").innerHTML = `
+        <div class="linha"><span>Subtotal</span><b>${VVP.moeda(sub)}</b></div>`;
+      document.getElementById("btnSeg").disabled = !itens.length;  // RN-01
+    }
+    function renderConsumo() {           // RF-25/26 — sinalizador visível já no carrinho
+      const c = VVP.calcularConsumo(true);
+      const box = document.getElementById("consumo");
+      if (!c) { box.innerHTML = ""; return; }
+      const pct = Math.min(100, c.teto ? c.consumido / c.teto * 100 : 0);
+      const exced = c.excedente > 0 ? c.excedente : (c.excedentePrevisao > 0 ? c.excedentePrevisao : 0);
+      box.innerHTML = `
+        <div class="resumo mt">
+          <div class="info-consumo">🎸 Consumação (RF-23): limite ${VVP.moeda(c.teto)} ·
+            enviado ${VVP.moeda(c.consumido)} · saldo ${VVP.moeda(c.saldo)}</div>
+          <div class="progresso" style="margin:8px 0">
+            <div class="preenchimento ${exced ? "excedente" : ""}" style="width:${pct}%"></div>
+          </div>
+          ${c.excedentePrevisao > 0 ? `
+          <div class="sinalizador">⚠️ Atenção: este pedido ultrapassa a consumação em
+            <b>${VVP.moeda(c.excedentePrevisao)}</b>.<br>
+            O excedente será descontado do cachê caso não seja pago no caixa. (RF-26)</div>` : ""}
+        </div>`;
+    }
+    function mudar(id, d) { VVP.alterarQtd(id, d); render(); }
+    function excluir(id) { VVP.removerItem(id); VVP.toast("Item excluído"); render(); }
+    function seguir() { location.href = "confirmacao.html"; }
+    render();
+  </script>
+</body>
+</html>

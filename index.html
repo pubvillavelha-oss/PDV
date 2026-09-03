@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ff6d00">
+  <title>T01 · Villa Velha Pub</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+  <header class="topo">
+    <div>
+      <div class="logo">🎤 Villa Velha Pub</div>
+      <div class="sub">Peça pelo celular · Selecione seu perfil</div>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <div class="grade">
+      <div class="cartao" onclick="VVP.entrarCliente(prompt('Número da mesa (deixe em branco p/ balcão):')); location.href='cardapio.html';">
+        <div class="icone">🧑‍🍳</div>
+        <div class="titulo-card">Sou Cliente</div>
+        <div class="desc-card">Ver cardápio e fazer pedido</div>
+      </div>
+      <div class="cartao" onclick="abrirBandas()">
+        <div class="icone">🎸</div>
+        <div class="titulo-card">Sou Banda / Artista</div>
+        <div class="desc-card">Consumação da noite (RF-23)</div>
+      </div>
+      <div class="cartao" onclick="location.href='central.html'">
+        <div class="icone">🛎️</div>
+        <div class="titulo-card">Central de Pedidos</div>
+        <div class="desc-card">Fila do bar e da cozinha</div>
+      </div>
+      <div class="cartao" onclick="abrirAdmin()">
+        <div class="icone">⚙️</div>
+        <div class="titulo-card">Administração</div>
+        <div class="desc-card">Taxa de serviço e cadastros</div>
+      </div>
+    </div>
+
+    <p class="vazio" style="font-size:.75rem">Acesso restrito às dependências do Villa Velha Pub.</p>
+  </main>
+
+  <!-- Diálogo: escolha da banda -->
+  <dialog id="dlBanda">
+    <h2>Escolha a banda da noite</h2>
+    <div id="listaBandas"></div>
+    <button class="btn mt" onclick="dlBanda.close()">Cancelar</button>
+  </dialog>
+
+  <!-- Diálogo: admin (RF-28 taxa configurável; RF-29 a RF-31 em iteração futura) -->
+  <dialog id="dlAdmin">
+    <h2>Acesso do Administrador</h2>
+    <input id="inSenha" class="campo" type="password" placeholder="Senha (demo: admin)">
+    <button class="btn primario mt" onclick="validarAdmin()">Entrar</button>
+    <div id="painelAdmin" hidden>
+      <h2 style="margin-top:14px">Configurações rápidas</h2>
+      <label style="font-size:.82rem;color:var(--txt2)">Taxa de serviço (%) — RF-28</label>
+      <input id="inTaxa" class="campo" type="number" step="0.1" min="0">
+      <button class="btn primario mt" onclick="salvarTaxa()">Salvar taxa</button>
+      <p class="info-consumo mt">RF-29 a RF-31 (cardápio, bandas e usuários) serão entregues na próxima iteração do módulo admin.</p>
+    </div>
+  </dialog>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    async function abrirBandas() {
+      const cat = await VVP.carregarCatalogo();
+      document.getElementById("listaBandas").innerHTML =
+        cat.bandas.map(b => {
+          const teto = VVP.moeda(VVP.tetoDaBanda(cat, b.idBanda));
+          return `<button class="opcao" onclick="entrarBanda(${b.idBanda})">
+            <b>${b.nomeBanda}</b><br>
+            <span class="info-consumo">${b.dataShow || ""} · Consumação: ${teto} · Cachê: ${VVP.moeda(b.cache)}</span>
+          </button>`;
+        }).join("") || '<p class="vazio">Nenhuma banda cadastrada para hoje.</p>';
+      document.getElementById("dlBanda").showModal();
+    }
+    async function entrarBanda(idBanda) {
+      const cat = await VVP.carregarCatalogo();
+      const b = cat.bandas.find(x => Number(x.idBanda) === Number(idBanda));
+      if (!b) return;
+      VVP.entrarBanda(b, VVP.tetoDaBanda(cat, b.idBanda));   // RN-04: teto setado automaticamente
+      document.getElementById("dlBanda").close();
+      location.href = "cardapio.html";
+    }
+    function abrirAdmin() {
+      document.getElementById("dlAdmin").showModal();
+      document.getElementById("inTaxa").value = VVP.obterTaxa();
+    }
+    function validarAdmin() {           // demo; em produção validar contra Usuarios (Sheets)
+      const senha = document.getElementById("inSenha").value;
+      if (senha !== "admin") { VVP.toast("Senha inválida", false); return; }
+      document.getElementById("painelAdmin").hidden = false;
+      document.getElementById("inSenha").style.display = "none";
+      VVP.toast("Bem-vindo, master (RF-03)");
+    }
+    function salvarTaxa() {
+      VVP.definirTaxa(Number(document.getElementById("inTaxa").value));
+      VVP.toast("Taxa de serviço atualizada");
+    }
+  </script>
+</body>
+</html>

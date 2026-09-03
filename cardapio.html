@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ff6d00">
+  <title>T02 · Cardápio</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+<body data-tema="base">
+  <header class="topo">
+    <button class="voltar" onclick="history.back()">←</button>
+    <div>
+      <div class="logo">🍽️ Cardápio</div>
+      <div class="sub" id="lblPerfil"></div>
+    </div>
+  </header>
+
+  <main class="conteudo">
+    <input id="busca" class="busca" placeholder="🔍 Buscar no cardápio..." oninput="render()">
+    <div class="chips" id="chips"></div>
+    <div class="grade-prod" id="grade"></div>
+  </main>
+
+  <div class="barra-cart">
+    <button onclick="location.href='carrinho.html'">
+      <span>🧺 Ver pedido · <span id="nItens">0</span> itens</span>
+      <span id="vlItens">R$ 0,00</span>
+    </button>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="servicos.js"></script>
+  <script>
+    let CAT = null, catAtiva = 0;
+
+    async function init() {
+      const s = VVP.getSessao();
+      document.getElementById("lblPerfil").textContent =
+        s.perfil === "banda" ? "🎸 " + s.nome + " · Consumação restante: " + VVP.moeda(VVP.calcularConsumo(false)?.saldo ?? s.teto)
+        : (s.mesa ? "🧑‍🍳 Mesa " + s.mesa : "🧑‍🍳 Cliente");
+      CAT = await VVP.carregarCatalogo();
+      renderChips();
+      render();
+      atualizarBarra();
+    }
+    function renderChips() {
+      const todas = [{ idCategoria: 0, nome: "Todos", cor: "base" }, ...CAT.categorias];
+      document.getElementById("chips").innerHTML = todas.map(c =>
+        `<button class="chip ${c.idCategoria === catAtiva ? "ativa" : ""}"
+           onclick="filtrar(${c.idCategoria}, '${c.cor}')">${c.nome}</button>`).join("");
+    }
+    function filtrar(id, cor) { catAtiva = id; VVP.aplicarTema(cor); renderChips(); render(); }
+    function render() {
+      const q = document.getElementById("busca").value.toLowerCase();
+      const prods = CAT.produtos.filter(p =>
+        (catAtiva === 0 || Number(p.idCategoria) === Number(catAtiva)) &&
+        (!q || p.nome.toLowerCase().includes(q)));
+      document.getElementById("grade").innerHTML = prods.map(p => {
+        const esg = p.disponibilidade === "Esgotado";               // RF-09
+        return `<div class="produto ${esg ? "esgotado" : ""}">
+          <div class="foto">${p.emoji || "🍽️"}</div>
+          <div class="corpo">
+            <div class="nome-p">${p.nome}</div>
+            <div class="preco">${VVP.moeda(p.preco)}</div>
+            ${esg ? '<span class="etq-esgotado">ESGOTADO</span>'
+                  : `<button class="add" onclick="add(${p.idProduto})">+</button>`}
+          </div>
+        </div>`;
+      }).join("") || '<p class="vazio">Nenhum item encontrado.</p>';
+    }
+    function add(idProduto) {
+      const p = CAT.produtos.find(x => x.idProduto === idProduto);
+      VVP.adicionarItem(p);
+      atualizarBarra();
+      VVP.toast(p.nome + " adicionado");
+    }
+    function atualizarBarra() {
+      document.getElementById("nItens").textContent = VVP.qtdCarrinho();
+      document.getElementById("vlItens").textContent = VVP.moeda(VVP.subtotalCarrinho());
+    }
+    init();
+  </script>
+</body>
+</html>
